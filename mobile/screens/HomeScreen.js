@@ -1,7 +1,10 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, StatusBar } from 'react-native';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSwitcher from '../components/LanguageSwitcher';
 
 const HomeScreen = ({ navigation }) => {
+    const { t } = useLanguage();
     const handleCheckStatus = async () => {
         try {
             // Local IP for testing on device (run 'ipconfig' to find yours)
@@ -17,40 +20,44 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
+            <View style={styles.languageContainer}>
+                <LanguageSwitcher />
+            </View>
+
             <View style={styles.content}>
-                <Text style={styles.title}>VISIONPATH</Text>
+                <Text style={styles.title}>{t.appTitle}</Text>
                 <Text style={styles.subtitle}>
-                    AI THIRD EYE FOR{'\n'}INDEPENDENT NAVIGATION
+                    {t.appSubtitle}
                 </Text>
 
                 <View style={styles.buttonContainer}>
                     <TouchableOpacity
                         style={styles.primaryButton}
-                        onPress={() => navigation.navigate('Demo')}
+                        onPress={() => navigation.navigate('IoTCheck')}
                     >
-                        <Text style={styles.primaryButtonText}>START AI DETECTION</Text>
-                        <Text style={styles.buttonSubtext}>Open camera & detect objects</Text>
+                        <Text style={styles.primaryButtonText}>{t.startDetection}</Text>
+                        <Text style={styles.buttonSubtext}>{t.startDetectionDesc}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.secondaryButton}
                         onPress={() => navigation.navigate('Features')}
                     >
-                        <Text style={styles.secondaryButtonText}>FEATURES</Text>
-                        <Text style={styles.buttonSubtext}>Learn how it works</Text>
+                        <Text style={styles.secondaryButtonText}>{t.features}</Text>
+                        <Text style={styles.buttonSubtext}>{t.featuresDesc}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                         style={styles.secondaryButton}
                         onPress={handleCheckStatus}
                     >
-                        <Text style={styles.secondaryButtonText}>CHECK AI STATUS</Text>
-                        <Text style={styles.buttonSubtext}>Test backend connection</Text>
+                        <Text style={styles.secondaryButtonText}>{t.checkStatus}</Text>
+                        <Text style={styles.buttonSubtext}>{t.checkStatusDesc}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
-            <Text style={styles.footer}>DEMO VERSION</Text>
+            <Text style={styles.footer}>{t.demoVersion}</Text>
         </View>
     );
 };
@@ -59,6 +66,12 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#000000',
+    },
+    languageContainer: {
+        position: 'absolute',
+        top: 50,
+        right: 20,
+        zIndex: 10,
     },
     content: {
         flex: 1,

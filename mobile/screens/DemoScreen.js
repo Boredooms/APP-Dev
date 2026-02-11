@@ -20,6 +20,7 @@ const DemoScreen = ({ navigation }) => {
     const flashAnim = useRef(new Animated.Value(0)).current;
     const intervalRef = useRef(null);
     const cameraRef = useRef(null);
+    const isRunningRef = useRef(false);  // Track running state synchronously
 
     // Trigger danger animation
     useEffect(() => {
@@ -45,16 +46,59 @@ const DemoScreen = ({ navigation }) => {
 
     // Capture frame and send to AI backend
     const detectObjects = async () => {
-        if (!cameraRef.current || isProcessing) return;
+        // CRITICAL: Check if still running before attempting capture (use ref for immediate check)
+        if (!isRunningRef.current || !cameraRef.current || isProcessing) {
+            return;
+        }
 
         try {
             setIsProcessing(true);
 
-            // Take picture
-            const photo = await cameraRef.current.takePictureAsync({
-                quality: 0.5, // Lower quality for faster upload
-                base64: false,
-            });
+            // Double-check still running after setting processing flag
+            if (!isRunningRef.current) {
+                setIsProcessing(false);
+                return;
+            }
+
+            // Check if camera is ready
+            if (!permission?.granted) {
+                console.log('Camera permission not granted');
+                setIsProcessing(false);
+                return;
+            }
+
+            // Take picture with error handling
+            let photo;
+            try {
+                photo = await cameraRef.current.takePictureAsync({
+                    quality: 0.5,
+                    base64: false,
+                    skipProcessing: true, // Faster capture
+                });
+            } catch (captureError) {
+                console.error('Image capture failed:', captureError);
+                // Don't show error if we're stopping
+                if (isRunningRef.current) {
+                    setDetectionData({
+                        object: 'Capture Error',
+                        distance: null,
+                    });
+                }
+                setIsProcessing(false);
+                return;
+            }
+
+            // Check if we stopped while capturing
+            if (!isRunningRef.current) {
+                setIsProcessing(false);
+                return;
+            }
+
+            if (!photo || !photo.uri) {
+                console.error('No photo URI returned');
+                setIsProcessing(false);
+                return;
+            }
 
             // Create form data
             const formData = new FormData();
@@ -64,16 +108,38 @@ const DemoScreen = ({ navigation }) => {
                 name: 'photo.jpg',
             });
 
-            // Send to AI backend
+            // Send to AI backend with timeout
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
             const response = await fetch('http://172.18.234.189:8000/api/detect', {
                 method: 'POST',
                 body: formData,
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
+                signal: controller.signal,
             });
 
+            clearTimeout(timeout);
+
+            // Check if we stopped while waiting for response
+            if (!isRunningRef.current) {
+                setIsProcessing(false);
+                return;
+            }
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+
             const data = await response.json();
+
+            // Final check before updating UI
+            if (!isRunningRef.current) {
+                setIsProcessing(false);
+                return;
+            }
 
             if (data.object) {
                 setDetectionData(data);
@@ -101,41 +167,55 @@ const DemoScreen = ({ navigation }) => {
 
         } catch (error) {
             console.error('Detection error:', error);
-            Alert.alert('Connection Error', 'Cannot connect to AI backend. Make sure Python server is running on port 8000.');
+            // Only show error if still running
+            if (isRunningRef.current) {
+                Alert.alert('Detection Error', error.message);
+            }
         } finally {
             setIsProcessing(false);
         }
     };
 
-    // Start detection loop
-    const startDetection = async () => {
+    // Start detection
+    const startDetection = () => {
         if (!permission?.granted) {
-            const result = await requestPermission();
-            if (!result.granted) {
-                Alert.alert('Camera Permission', 'Camera access is required for object detection');
-                return;
-            }
+            Alert.alert(
+                'Camera Permission Required',
+                'Please grant camera permission to use AI detection.'
+            );
+            return;
         }
 
         setIsRunning(true);
+        isRunningRef.current = true;  // Set ref synchronously
+        setIsDanger(false);
+        setDetectionData(null);
 
-        // Run detection every 2 seconds
-        intervalRef.current = setInterval(() => {
+        // Start interval (detect every 2 seconds)
+        intervalRef.current = setInterval(detectObjects, 2000);
+
+        // IMPORTANT: Immediate first detection after a short delay for camera to initialize
+        setTimeout(() => {
             detectObjects();
-        }, 2000);
-
-        // Immediate first detection
-        setTimeout(() => detectObjects(), 500);
+        }, 500);
     };
 
     // Stop detection
     const stopDetection = () => {
+        // CRITICAL: Set both state and ref to false FIRST
         setIsRunning(false);
+        isRunningRef.current = false;  // Set ref synchronously
+
+        // Clear interval
         if (intervalRef.current) {
             clearInterval(intervalRef.current);
+            intervalRef.current = null;
         }
-        setDetectionData(null);
+
+        // Reset states
         setIsDanger(false);
+        setDetectionData(null);
+        setIsProcessing(false);
     };
 
     // Cleanup on unmount
@@ -179,12 +259,15 @@ const DemoScreen = ({ navigation }) => {
 
             <View style={styles.cameraContainer}>
                 {isRunning ? (
-                    <CameraView
-                        ref={cameraRef}
-                        style={styles.camera}
-                        facing="back"
-                    >
-                        {/* Detection overlay box */}
+                    <>
+                        {/* Camera View - NO CHILDREN */}
+                        <CameraView
+                            ref={cameraRef}
+                            style={styles.camera}
+                            facing="back"
+                        />
+
+                        {/* Detection overlay - ABSOLUTE POSITIONED OUTSIDE CAMERA */}
                         <View style={styles.overlay}>
                             <View style={[styles.detectionBox, isDanger && styles.dangerBox]}>
                                 {/* Corner markers */}
@@ -201,7 +284,7 @@ const DemoScreen = ({ navigation }) => {
                                 )}
                             </View>
                         </View>
-                    </CameraView>
+                    </>
                 ) : (
                     <View style={styles.placeholder}>
                         <Text style={styles.placeholderText}>AI READY</Text>
@@ -305,6 +388,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
+        position: 'relative',  // Added for absolute child positioning
     },
     camera: {
         width: '100%',
@@ -331,9 +415,14 @@ const styles = StyleSheet.create({
         marginTop: 10,
     },
     overlay: {
-        flex: 1,
+        position: 'absolute',  // Absolute positioning
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
         justifyContent: 'center',
         alignItems: 'center',
+        pointerEvents: 'none',  // Don't block camera touches
     },
     detectionBox: {
         width: 280,
