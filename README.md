@@ -6,14 +6,14 @@
 - Real camera feed 
 - Captures frames every 2 seconds
 - Displays AI detection results
-- Bengali voice alerts
+- Hindi voice alerts
 - Distance warnings with red flash
 
 ✅ **AI Backend (Python + YOLOv8)**
 - Detects 80 different objects
 - Returns confidence scores
 - Calculates distance estimates
-- Provides Bengali translations
+- Provides Hindi translations
 
 ---
 
@@ -85,7 +85,7 @@ Press `w` for web OR scan QR code with Expo Go app
    
 3. If object is < 1.5m away:
    - Red border flashes
-   - Bengali voice speaks (e.g., "Gari samne")
+   - Hindi voice speaks (e.g., "Gari samne")
 
 ---
 
@@ -159,7 +159,7 @@ visionpath/
 3. Taps "START SIMULATION"
 4. Camera opens with detection overlay
 5. Points at objects
-6. AI detects and announces in Bengali
+6. AI detects and announces in Hindi
 7. Distance warnings with visual+audio alerts
 
 **Perfect for hackathon demo!** 🚀
